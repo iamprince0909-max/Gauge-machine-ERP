@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Cutting Jobs</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+<img src="logo.png" class="logo">
+<h2>Bag ERP</h2>
+
+<a href="index.html">Dashboard</a>
+<a href="specsheet.html">Spec Sheet</a>
+<a class="active">Cutting Jobs</a>
+</div>
+
+<div class="main">
+
+<h1>Cutting Jobs</h1>
+
+<input id="jobName" placeholder="Batch Name">
+
+<table id="cutTable"></table>
+<button onclick="addRow()">+ Add Style</button>
+<button onclick="saveJob()">Save Job</button>
+
+<h2>Saved Jobs</h2>
+<div id="jobs"></div>
+
+</div>
+
+<script src="js/db.js"></script>
+<script src="js/cutting.js"></script>
+</body>
+</html>

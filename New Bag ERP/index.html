@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bag ERP</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+margin:0;
+font-family:Inter,Segoe UI;
+background:linear-gradient(180deg,#0b1220,#020617);
+color:#e5e7eb;
+}
+
+/* TOP BAR */
+
+.topbar{
+height:70px;
+background:#020617;
+display:flex;
+align-items:center;
+padding:0 30px;
+border-bottom:1px solid #111827;
+}
+
+.logo{
+width:140px;
+margin-right:30px;
+}
+
+.topbar button{
+background:#0f172a;
+border:none;
+color:#cbd5f5;
+padding:10px 16px;
+margin-right:8px;
+border-radius:8px;
+cursor:pointer;
+font-weight:500;
+}
+
+.topbar button:hover{
+background:#2563eb;
+color:white;
+}
+
+/* MAIN */
+
+.main{
+padding:40px;
+}
+
+/* CARDS */
+
+.card{
+background:#0f172a;
+padding:24px;
+border-radius:14px;
+margin-bottom:20px;
+box-shadow:0 10px 30px rgba(0,0,0,.4);
+border:1px solid #111827;
+}
+
+/* GRID */
+
+.grid{
+display:grid;
+grid-template-columns:320px 1fr;
+gap:24px;
+}
+
+/* STYLE LIST */
+
+.styleItem{
+padding:12px;
+background:#020617;
+border-radius:10px;
+margin:8px 0;
+display:flex;
+justify-content:space-between;
+align-items:center;
+border:1px solid #111827;
+}
+
+.styleItem button{
+background:#1f2937;
+border:none;
+color:white;
+padding:6px 10px;
+border-radius:6px;
+}
+
+/* TABLE */
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:14px;
+}
+
+th{
+background:#1f2937;
+}
+
+td,th{
+border:1px solid #111827;
+padding:10px;
+text-align:center;
+}
+
+/* INPUT */
+
+input,select{
+width:100%;
+padding:10px;
+background:#020617;
+border:1px solid #1f2937;
+color:white;
+border-radius:8px;
+margin-bottom:8px;
+}
+
+/* BUTTON */
+
+button.action{
+background:#2563eb;
+border:none;
+padding:12px;
+color:white;
+border-radius:8px;
+margin-top:10px;
+cursor:pointer;
+font-weight:600;
+box-shadow:0 6px 20px rgba(37,99,235,.4);
+}
+
+.preview{
+width:150px;
+margin-top:10px;
+border-radius:10px;
+border:1px solid #111827;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+<img src="logo.png" class="logo">
+
+<button onclick="show('spec')">Spec Sheet</button>
+<button onclick="show('cut')">Cutting Batch</button>
+<button onclick="show('plan')">Material Planning</button>
+<button onclick="show('history')">Batch History</button>
+<button onclick="savePDF()">Save PDF</button>
+</div>
+
+<div class="main" id="app"></div>
+
+<script>
+
+let DB=JSON.parse(localStorage.getItem("ERP"))||{styles:{},batches:{}};
+function save(){localStorage.setItem("ERP",JSON.stringify(DB));}
+
+/* PDF EXPORT */
+
+async function savePDF(){
+
+const { jsPDF } = window.jspdf;
+
+let canvas = await html2canvas(document.querySelector(".main"),{
+scale:2,
+backgroundColor:"#ffffff"
+});
+
+let img = canvas.toDataURL("image/png");
+
+let pdf = new jsPDF("p","mm","a4");
+
+let width = 210;
+let height = canvas.height * width / canvas.width;
+
+pdf.addImage(img,"PNG",0,0,width,height);
+pdf.save("ERP_Report.pdf");
+}
+
+/* ROUTER */
+
+function show(page){
+
+if(page==="spec"){
+app.innerHTML=`
+<h1>Spec Sheet Library</h1>
+
+<div class="grid">
+
+<div class="card">
+<input id="search" placeholder="Search style..." oninput="renderList()">
+<div id="styleList"></div>
+</div>
+
+<div class="card">
+
+<h2>Edit / Add Style</h2>
+
+<input id="style" placeholder="Style No">
+<input id="colour" placeholder="Colour">
+
+<input type="file" id="photo" accept="image/*">
+<img id="preview" class="preview">
+
+<table id="specT">
+<tr>
+<th>Material</th>
+<th>Description</th>
+<th>Qty per pc</th>
+<th>Unit</th>
+</tr>
+</table>
+
+<button class="action" onclick="addSpec()">+ Add Material</button>
+<button class="action" onclick="saveSpec()">Save Style</button>
+
+</div>
+</div>`;
+
+renderList();
+
+photo.onchange=e=>{
+let reader=new FileReader();
+reader.onload=()=>preview.src=reader.result;
+reader.readAsDataURL(e.target.files[0]);
+}
+}
+
+/* CUT */
+
+if(page==="cut"){
+let opts=Object.keys(DB.styles).map(s=>`<option>${s}</option>`).join("");
+
+app.innerHTML=`
+<h1>Create Cutting Batch</h1>
+
+<div class="card">
+
+<input id="batch" placeholder="Batch Name">
+
+<table id="cutT">
+<tr><th>Style</th><th>Qty</th></tr>
+</table>
+
+<button class="action" onclick="addCut('${opts}')">+ Add Style</button>
+<button class="action" onclick="saveBatch()">Save Batch</button>
+
+</div>`;
+}
+
+/* PLAN */
+
+if(page==="plan"){
+let b=Object.keys(DB.batches).map(x=>`<option>${x}</option>`).join("");
+
+app.innerHTML=`
+<h1>Material Planning</h1>
+
+<div class="card">
+<select id="batchSel" onchange="calc()">${b}</select>
+<table id="planT"></table>
+</div>`;
+
+calc();
+}
+
+/* HISTORY */
+
+if(page==="history"){
+app.innerHTML="<h1>Batch History</h1>";
+
+Object.entries(DB.batches).forEach(([name,data])=>{
+app.innerHTML+=`
+<div class="card">
+<b>${name}</b><br>
+Styles: ${data.length}
+<button onclick="openBatch('${name}')">Open</button>
+</div>`;
+});
+}
+
+}
+
+/* STYLE LIST */
+
+function renderList(){
+let s=search.value.toLowerCase();
+styleList.innerHTML="";
+Object.keys(DB.styles).forEach(k=>{
+if(!k.toLowerCase().includes(s))return;
+styleList.innerHTML+=`
+<div class="styleItem">
+${k}
+<button onclick="loadStyle('${k}')">Edit</button>
+</div>`;
+});
+}
+
+/* LOAD STYLE */
+
+function loadStyle(key){
+let data=DB.styles[key];
+style.value=key.split("-")[0];
+colour.value=key.split("-")[1];
+preview.src=data.photo||"";
+
+specT.innerHTML=`
+<tr>
+<th>Material</th>
+<th>Description</th>
+<th>Qty per pc</th>
+<th>Unit</th>
+</tr>`;
+
+data.items.forEach(m=>{
+let r=specT.insertRow();
+r.innerHTML=`
+<td><input value="${m.material}"></td>
+<td><input value="${m.desc}"></td>
+<td><input type=number value="${m.qty}"></td>
+<td>
+<select>
+<option ${m.unit=="mtr"?"selected":""}>mtr</option>
+<option ${m.unit=="pcs"?"selected":""}>pcs</option>
+<option ${m.unit=="cm"?"selected":""}>cm</option>
+<option ${m.unit=="inch"?"selected":""}>inch</option>
+</select>
+</td>`;
+});
+}
+
+/* ADD */
+
+function addSpec(){
+let r=specT.insertRow();
+r.innerHTML=`
+<td><input></td>
+<td><input></td>
+<td><input type=number></td>
+<td>
+<select>
+<option>mtr</option>
+<option>pcs</option>
+<option>cm</option>
+<option>inch</option>
+</select>
+</td>`;
+}
+
+/* SAVE */
+
+function saveSpec(){
+let id=style.value.trim();
+let col=colour.value.trim();
+if(!id||!col)return alert("Style + colour required");
+
+let arr=[];
+specT.querySelectorAll("tr").forEach((r,i)=>{
+if(i===0)return;
+let i2=r.querySelectorAll("input");
+let sel=r.querySelector("select");
+arr.push({
+material:i2[0].value,
+desc:i2[1].value,
+qty:Number(i2[2].value),
+unit:sel.value
+});
+});
+
+let key=id+"-"+col;
+DB.styles[key]={items:arr,photo:preview.src||""};
+save();
+renderList();
+alert("Style saved");
+}
+
+/* CUT */
+
+function addCut(opts){
+let r=cutT.insertRow();
+r.innerHTML=`<td><select>${opts}</select></td><td><input type=number></td>`;
+}
+
+function saveBatch(){
+let id=batch.value.trim();
+let arr=[];
+cutT.querySelectorAll("tr").forEach((r,i)=>{
+if(i===0)return;
+let sel=r.querySelector("select");
+let inp=r.querySelector("input");
+arr.push({style:sel.value,qty:Number(inp.value)});
+});
+DB.batches[id]=arr;
+save();
+alert("Batch saved");
+}
+
+/* PLAN */
+
+function calc(){
+if(!batchSel)return;
+let job=DB.batches[batchSel.value];
+if(!job)return;
+
+let sum={};
+
+job.forEach(s=>{
+DB.styles[s.style].items.forEach(m=>{
+let key=m.material+"-"+m.unit;
+if(!sum[key]){
+sum[key]={material:m.material,desc:m.desc,unit:m.unit,total:0};
+}
+sum[key].total+=m.qty*s.qty;
+});
+});
+
+planT.innerHTML="<tr><th>Material</th><th>Description</th><th>Total</th><th>Unit</th></tr>";
+
+Object.values(sum).forEach(m=>{
+planT.innerHTML+=`
+<tr>
+<td>${m.material}</td>
+<td>${m.desc}</td>
+<td>${m.total}</td>
+<td>${m.unit}</td>
+</tr>`;
+});
+}
+
+/* HISTORY */
+
+function openBatch(name){
+show('plan');
+setTimeout(()=>batchSel.value=name,50);
+setTimeout(calc,100);
+}
+
+show("spec");
+
+</script>
+
+</body>
+</html>
